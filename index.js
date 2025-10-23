@@ -6,56 +6,53 @@
 
 import fs from 'fs';                      // For reading command files
 import path from 'path';                  // For file paths
-import { Client, GatewayIntentBits, Partials, Collection } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, Collection, ActivityType } from 'discord.js';
 import 'dotenv/config';                   // Loads environment variables from .env
 
-// Create a new Discord client with the necessary "intents"
+// ----- Create Discord Client -----
 // Intents tell Discord what kind of events your bot should receive
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,              // Server-related events (e.g., slash commands)
     GatewayIntentBits.GuildMembers,        // Detect when members join/leave
     GatewayIntentBits.GuildMessages,       // Message-related events
-    GatewayIntentBits.MessageContent,      // Read message content (use carefully)
+    GatewayIntentBits.MessageContent,      // Allows reading message content (use carefully)
     GatewayIntentBits.GuildMessageReactions // Detect message reactions
   ],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction], // Allow handling partial data (useful for reactions)
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction], // Needed for reactions & uncached messages
 });
 
-// Create a collection (like a map) to store commands
+// ----- Create a Collection to Store Commands -----
+// Collection is like a Map object: key = command name, value = command file
 client.commands = new Collection();
 
-// ----- Load Commands Dynamically -----
-const commandsPath = path.join(process.cwd(), 'commands');             // Path to the commands folder
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js')); // Get all .js files
+// ----- Dynamically Load Commands from /commands Folder -----
+const commandsPath = path.join(process.cwd(), 'commands'); // Path to the commands folder
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js')); // Only .js files
 
-// Import and register all commands
 for (const file of commandFiles) {
-  const command = await import(`./commands/${file}`); // Import the command file
-  client.commands.set(command.data.name, command);    // Store command in the bot's collection
+  const command = await import(`./commands/${file}`); // Dynamically import each command
+  client.commands.set(command.data.name, command);    // Add it to the bot's collection
 }
 
 // ----- Bot Ready Event -----
-client.once('clientReady', () => {
-  console.log(`✅ Logged in as ${client.user.tag}`); // Log bot status to console
-  client.user.setActivity('Idaho State Roleplay', { type: 3 }); // Sets bot status: "Watching Idaho State Roleplay"
+client.once('ready', () => { // Changed from 'clientReady' -> 'ready' (Discord.js correct event name)
+  console.log(`✅ Logged in as ${client.user.tag}`); // Log bot status
+  client.user.setActivity('Idaho State Roleplay', { type: ActivityType.Watching }); // Bot status: "Watching Idaho State Roleplay"
 });
 
-// ----- Interaction (Slash Command) Event -----
+// ----- Interaction Event -----
+// Handles slash commands
 client.on('interactionCreate', async (interaction) => {
-  // Only respond to slash commands
-  if (!interaction.isChatInputCommand()) return;
+  if (!interaction.isChatInputCommand()) return; // Only respond to slash commands
 
-  // Get the command from our collection
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return; // If not found, exit
+  const command = client.commands.get(interaction.commandName); // Get the command
+  if (!command) return; // Exit if command not found
 
   try {
-    // Execute the command
-    await command.execute(interaction);
+    await command.execute(interaction); // Run the command
   } catch (error) {
     console.error(error);
-    // Respond with a friendly error message
     await interaction.reply({
       content: '⚠️ There was an error while executing this command.',
       ephemeral: true, // Only visible to the user who ran it
@@ -63,5 +60,5 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// ----- Login -----
-client.login(process.env.TOKEN); // Logs the bot in using your token in .env
+// ----- Login to Discord -----
+client.login(process.env.TOKEN); // Uses token from your .env
